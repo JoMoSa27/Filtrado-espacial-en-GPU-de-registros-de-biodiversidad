@@ -1,0 +1,10 @@
+Conjunto:        Aves, Costa Rica, año 2018
+Registros:       1 597 958 (de 10 conjuntos de datos publicados)
+Taxonomía:       Catalogue of Life 2026-06-19 XR (tal como la implementa GBIF)
+Formato:         Simple occurrence data (TSV), 193,8 MB comprimido
+Creada:          2026-09-25 16:47:24 UTC
+Clave GBIF:      0007871-260921141020460
+Descarga:        https://api.gbif.org/v1/occurrence/download/request/0007871-260921141020460.zip
+Consulta:        https://www.gbif.org/occurrence/search?country=CR&occurrenceStatus=PRESENT&hasCoordinate=true&hasGeospatialIssue=false&basisOfRecord=OCCURRENCE&basisOfRecord=PRESERVED_SPECIMEN&basisOfRecord=MATERIAL_CITATION&basisOfRecord=MATERIAL_SAMPLE&basisOfRecord=HUMAN_OBSERVATION&basisOfRecord=MACHINE_OBSERVATION&basisOfRecord=OBSERVATION&taxonKey=V2&year=2018
+DOI:             https://doi.org/10.15468/dl.xdw99k
+Cita:            GBIF.org (25 September 2026) GBIF Occurrence Download https://doi.org/10.15468/dl.xdw99k

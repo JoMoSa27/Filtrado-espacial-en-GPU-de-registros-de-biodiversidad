@@ -1,0 +1,22 @@
+# data/raw/ es INMUTABLE: nada de aquí se edita, todo lo derivado se regenera.
+#
+# Lista blanca: se ignora todo salvo lo que hace falta para reconstruir esta
+# carpeta desde cero en otra máquina.
+*
+!.gitignore
+!*/
+
+# Procedencia. Sin esto el paper no puede citar sus datos: CITATION.txt lleva
+# la consulta exacta de GBIF y su DOI, SOURCE.md lleva el origen y el SHA-256.
+!*/CITATION.txt
+!*/SOURCE.md
+
+# Los conjuntos de GeoThinneR (tortuga 87 KB, atún 459 KB) SÍ se suben.
+# Son la entrada exacta con la que ese paper publicó sus tiempos, así que E3
+# depende de tenerlos idénticos — y los nodos de cómputo de Kabre no siempre
+# tienen salida a internet, así que bajarlos allí no está garantizado.
+# Su SHA-256 está en geothinner/SOURCE.md para poder verificarlos.
+!geothinner/*.rda
+
+# Las descargas de GBIF NO se suben: son cientos de MB y se rehacen desde el
+# DOI que guarda cada CITATION.txt. Ver KABRE.md.

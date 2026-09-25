@@ -1,0 +1,10 @@
+Conjunto:        Plantae, Costa Rica, todos los años
+Registros:       1 052 323 (de 346 conjuntos de datos publicados)
+Taxonomía:       Catalogue of Life 2026-06-19 XR (tal como la implementa GBIF)
+Formato:         Simple occurrence data (TSV), 159,1 MB comprimido
+Creada:          2026-09-25 17:04:53 UTC
+Clave GBIF:      0007891-260921141020460
+Descarga:        https://api.gbif.org/v1/occurrence/download/request/0007891-260921141020460.zip
+Consulta:        (mismos filtros comunes, taxón Plantae, sin filtro de año)
+DOI:             https://doi.org/10.15468/dl.mbz7g2
+Cita:            GBIF.org (25 September 2026) GBIF Occurrence Download https://doi.org/10.15468/dl.mbz7g2

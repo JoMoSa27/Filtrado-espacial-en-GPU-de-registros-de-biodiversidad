@@ -1,0 +1,84 @@
+# .gitignore — Póster BIP 2026
+#
+# CRITERIO: al repo sube lo que hace falta para REGENERAR todo en Kabre, y nada
+# que se pueda regenerar. En concreto:
+#
+# Regla del repo: data/raw/ es inmutable y todo lo demás se regenera con
+# scripts/run_pipeline.sh. Este archivo es esa regla, aplicada.
+#
+# Las carpetas de data/ traen además su propio .gitignore con una lista blanca,
+# que es más estricta que lo de aquí y manda sobre los archivos de data/.
+
+# Python 
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# Salidas que se regeneran 
+# reports/  reportes HTML de 00_explorar.py — se regeneran y pesan
+# logs/     salida de SLURM
+reports/
+logs/
+slurm-*.out
+*.log
+
+# Compilación del benchmark (bench/, cuando exista) 
+bench/build/
+build/
+*.o
+*.a
+*.so
+*.ptx
+*.cubin
+*.fatbin
+compile_commands.json
+CMakeFiles/
+CMakeCache.txt
+
+# Datos pesados, en cualquier ubicación 
+# Redundante con los .gitignore de data/, a propósito: si alguien crea una
+# carpeta nueva y deja ahí una descarga, no se sube por accidente.
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.npy
+*.npz
+*.parquet
+*.feather
+
+# Los TSV/CSV de GBIF vienen con el nombre <clave>.csv dentro de data/raw/.
+# Los CSV de RESULTADOS del benchmark sí se suben: van en results/ y se
+# desactiva la regla para esa carpeta más abajo.
+data/**/*.csv
+data/**/*.tsv
+
+# Resultados del benchmark: SÍ se suben 
+# Son pequeños y el paper se escribe a partir de ellos. La regla del repo dice
+# que ningún número puede venir de otro lado que no sea una corrida guardada.
+!results/
+!results/**
+
+# Paper 
+~$*
+*.tmp
+.~lock.*
+
+# Editor / sistema operativo
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Solo uso local  
+CLAUDE.md
+CONTEXT.md
+KABRE.md
+.claude/

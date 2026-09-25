@@ -1,0 +1,10 @@
+Conjunto:        Amphibia, Costa Rica, todos los años
+Registros:       89 058 (de 65 conjuntos de datos publicados)
+Taxonomía:       Catalogue of Life 2026-06-19 XR (tal como la implementa GBIF)
+Formato:         Simple occurrence data (TSV), 11,4 MB comprimido
+Creada:          2026-09-25 16:48:39 UTC
+Clave GBIF:      0007872-260921141020460
+Descarga:        https://api.gbif.org/v1/occurrence/download/request/0007872-260921141020460.zip
+Consulta:        https://www.gbif.org/occurrence/search?country=CR&occurrenceStatus=PRESENT&hasCoordinate=true&hasGeospatialIssue=false&basisOfRecord=OCCURRENCE&basisOfRecord=PRESERVED_SPECIMEN&basisOfRecord=MATERIAL_CITATION&basisOfRecord=MATERIAL_SAMPLE&basisOfRecord=HUMAN_OBSERVATION&basisOfRecord=MACHINE_OBSERVATION&basisOfRecord=OBSERVATION&taxonKey=PH
+DOI:             https://doi.org/10.15468/dl.4awycg
+Cita:            GBIF.org (25 September 2026) GBIF Occurrence Download https://doi.org/10.15468/dl.4awycg

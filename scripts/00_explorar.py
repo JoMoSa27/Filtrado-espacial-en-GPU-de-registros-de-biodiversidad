@@ -187,7 +187,7 @@ def paso4_duplicados(raw_valid, decimals):
     stats = {
         "registros validos": len(key),
         "coordenadas distintas": len(mult),
-        "registros duplicados": int(len(key) - len(mult)),
+        "registros que comparten coordenada": int(len(key) - len(mult)),
         "maximo en una coordenada": int(mult.max()),
         "coordenadas en una malla regular": _lattice(key),
         "pares extra que solo aportan los duplicados": extra,
@@ -373,7 +373,8 @@ def build_html(label, src, raw, df, info, map_b64, embudo, cal_figs, dup_top,
 <div class="kpi">{dup_kpi}</div>
 <img src="data:image/png;base64,{dup_b64}">
 <div class="tw">{table(dup_top, 10)}</div>
-{box("Qué estás viendo", f"Una coordenada cuenta como duplicada si coincide con otra al redondear a {decimals} decimales (≈1 m). "
+{box("Qué estás viendo", f"Aquí se cuentan registros que caen en la misma coordenada (redondeada a {decimals} decimales, ≈1 m), SIN importar la especie: es lo que ve la estructura espacial, que no sabe de especies. "
+"Ojo: la limpieza solo elimina como duplicado la misma especie en la misma coordenada; dos especies distintas en un mismo punto son registros válidos y se conservan. "
 "La barra en x=1 son las coordenadas que aparecen una sola vez; todo lo que está a la derecha son repeticiones. "
 "La tabla muestra las coordenadas más repetidas: suelen ser centroides de país, sedes de instituciones o puntos de observación fijos.")}
 {box("Por qué importa", "Una coordenada con k copias genera k² pares de vecinos por sí sola. Por eso los duplicados inflan el costo de la grilla "

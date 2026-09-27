@@ -122,14 +122,27 @@ def clean(df, keep_duplicates=False, round_decimals=5,
             "No sostiene un filtrado a 1 km. Se conservan los NaN: GBIF a "
             "menudo no la reporta.")
 
+    # Duplicado = MISMA ESPECIE en la misma coordenada (definicion de
+    # CoordinateCleaner::cc_dupl). Dos especies distintas en el mismo punto
+    # (p. ej. una trampa de luz) NO son duplicados: son dos registros validos.
+    # Si falta 'species' (identificado solo a genero), se usa scientificName.
     key = df[["lat", "lon"]].round(round_decimals)
+    taxon_col = None
+    if "species" in df.columns or "scientificName" in df.columns:
+        sp = df["species"] if "species" in df.columns else pd.Series(np.nan, index=df.index)
+        if "scientificName" in df.columns:
+            sp = sp.where(sp.notna() & (sp.astype(str).str.strip() != ""),
+                          df["scientificName"])
+        key = key.assign(_taxon=sp.astype(str).str.strip())
+        taxon_col = "especie + coordenada"
     dup = key.duplicated(keep="first")
     n = len(df)
     if not keep_duplicates:
         df = df[~dup]
-    log(f"Duplicados exactos ({round_decimals} decimales)", n, len(df),
-        "Misma coordenada repetida. Inflan Sum n_i^2 y con ello el costo de la "
-        "grilla." if not keep_duplicates else
+    criterio = taxon_col or "coordenada"
+    log(f"Duplicados exactos ({criterio}, {round_decimals} decimales)", n, len(df),
+        "Misma especie repetida en la misma coordenada. Inflan Sum n_i^2 y con "
+        "ello el costo de la grilla." if not keep_duplicates else
         "CONSERVADOS a proposito (variante 'con duplicados').")
 
     return df.reset_index(drop=True), pasos

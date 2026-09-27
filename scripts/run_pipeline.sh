@@ -77,6 +77,19 @@ CR=()
 for r in "${READY[@]}"; do
   case "${r%%|*}" in aves_2018|insecta_2018|plantae|amphibia) CR+=("$r");; esac
 done
+# Un taxon con menos de E1_MIN puntos tras limpiar no sirve para medir en GPU:
+# se excluye de E1 (con aviso) en vez de arrastrar a todos a ese tamano.
+E1_MIN="${E1_MIN:-10000}"
+KEEP=()
+for r in "${CR[@]}"; do
+  nf=$($PY -c "import json;print(json.load(open('data/processed/${r%%|*}_report.json'))['n_final'])")
+  if [ "$nf" -lt "$E1_MIN" ]; then
+    log "E1: excluyo ${r%%|*} (N=$nf < $E1_MIN tras limpiar)"
+  else
+    KEEP+=("$r")
+  fi
+done
+CR=("${KEEP[@]+"${KEEP[@]}"}")
 if [ "${#CR[@]}" -ge 2 ]; then
   # N comun = el menor N tras limpiar, redondeado hacia abajo a miles.
   N=$($PY - "${CR[@]}" << 'EOF'

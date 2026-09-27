@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=bip-datos
-#SBATCH --time=02:00:00
+#SBATCH --partition=kura
+#SBATCH --time=04:00:00
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
 #SBATCH --output=logs/datos_%j.out

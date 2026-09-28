@@ -62,6 +62,10 @@ def main():
     ap.add_argument("--w2", action="store_true")
     ap.add_argument("--rules", nargs="+", default=["random", "mindeg"])
     ap.add_argument("--seeds", type=int, nargs="+", default=[0])
+    ap.add_argument("--coords", choices=["f64", "f32c"], default="f64",
+                    help="f64 = verdad geodesica; f32c = las MISMAS coordenadas float32 "
+                         "centradas que recibe la GPU (aisla errores de implementacion de "
+                         "los de cuantizacion). Con f32c los archivos llevan sufijo _f32c")
     ap.add_argument("--w1-max-n", type=int, default=400_000,
                     help="W1 exacto solo hasta este N (arriba, la GPU se valida por "
                          "acuerdo entre sus tres estructuras)")
@@ -71,7 +75,11 @@ def main():
     args = ap.parse_args()
     write_vectors()
 
-    xyz = np.load(PROCESSED / f"{args.label}_xyz_f64.npy")
+    if args.coords == "f32c":
+        xyz = np.load(PROCESSED / f"{args.label}_xyz_f32_centered.npy").astype(np.float64)
+    else:
+        xyz = np.load(PROCESSED / f"{args.label}_xyz_f64.npy")
+    sfx = "_f32c" if args.coords == "f32c" else ""
     if args.export_csv:
         import pandas as pd
         pq = ROOT / "data" / "interim" / f"{args.label}.parquet"
@@ -100,7 +108,7 @@ def main():
             cnt = tree.query_ball_point(xyz, chord, return_length=True,
                                         workers=ncpu()) - 1
             t_query = time.perf_counter() - t
-            np.save(PROCESSED / f"{args.label}_count_{tag}.npy", cnt.astype(np.int32))
+            np.save(PROCESSED / f"{args.label}_count_{tag}{sfx}.npy", cnt.astype(np.int32))
             # El tiempo de la referencia es tambien la linea base en CPU (cKDTree).
             timing[tag] = {"N": int(len(xyz)), "d_km": km, "hilos": ncpu(),
                            "build_s": t_build, "query_s": t_query,
@@ -129,13 +137,13 @@ def main():
                         ip, ix, _ = thin.neighbor_csr(xyz[idx], d_m)
                         k, _, _ = thin.thin_greedy(ip, ix, rule, seed, check_rounds=False, ids=idx)
                         mask[idx[k]] = True
-                    np.save(PROCESSED / f"{args.label}_thin_{rule}_{tag}_s{seed}.npy", mask)
+                    np.save(PROCESSED / f"{args.label}_thin_{rule}_{tag}_s{seed}{sfx}.npy", mask)
                     print(f"[{args.label}] W2 {rule} s{seed} d={km:g} km: "
                           f"retenidos {int(mask.sum()):,} de {int((otu >= 0).sum()):,} "
                           f"({time.perf_counter() - t:.1f} s)")
     if timing:
         import json
-        (PROCESSED / f"{args.label}_cpu_w1.json").write_text(
+        (PROCESSED / f"{args.label}_cpu_w1{sfx}.json").write_text(
             json.dumps(timing, indent=2), encoding="utf-8")
 
 

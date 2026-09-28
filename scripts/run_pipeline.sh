@@ -147,6 +147,7 @@ for gt in "tortuga_gt|data/raw/geothinner/caretta.rda|Caretta caretta" \
     && $PY $S/03_cluster_stats.py --label "$label" --radii-km 10 25 50 --rect data >/dev/null \
     && $PY $S/04_species_stats.py --label "$label" --radii-km 10 25 50 --rect data --single-otu "$name" \
     && $PY $S/05_references.py --label "$label" --radii-km 10 25 50 --w1 --w2 --export-csv \
+    && $PY $S/05_references.py --label "$label" --radii-km 10 25 50 --w1 --w2 --coords f32c >/dev/null \
     || echo "  !! fallo E3 $label"
 done
 
@@ -173,6 +174,9 @@ for f in data/processed/e1_*_xyz_f64.npy data/processed/e2_*_xyz_f64.npy \
   label=$(basename "$f" _xyz_f64.npy)
   case "$label" in tortuga*|atun*) continue;; esac
   $PY $S/05_references.py --label "$label" --radii-km 1 5 10 --w1 || echo "  !! fallo W1 $label"
+  # Misma referencia sobre las coordenadas float32 centradas que usa la GPU
+  $PY $S/05_references.py --label "$label" --radii-km 1 5 10 --w1 --coords f32c >/dev/null \
+    || echo "  !! fallo W1 f32c $label"
 done
 
 # --------------------------------------------------------------- figuras ---

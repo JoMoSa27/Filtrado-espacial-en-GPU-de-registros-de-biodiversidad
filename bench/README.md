@@ -10,10 +10,28 @@ biblioteca externa: **aquí no se modifica su código**.
 
 | | Tarea biológica | Consulta | Entrada | Salida exacta de referencia |
 |---|---|---|---|---|
-| **W1** | Densidad de registros del grupo objetivo (esfuerzo de muestreo; *target-group*) | contar vecinos a < d, todos los registros | `<label>_xyz_f64.npy` de nubes `_dup`, `e1_*`, `e2_*`, `*_gt` | `<label>_count_<d>km.npy` (int32) |
+| **W1** | Densidad de registros del grupo objetivo (esfuerzo de muestreo; *target-group*) | contar vecinos a < d, todos los registros | `<label>_xyz_f64.npy` de nubes `_dup`, `e1_*`, `e2_*`, `*_gt` | `<label>_count_<d>km[_f32c].npy` (int32) |
 | **W2** | Filtrado espacial **por especie** | voraz paralelo por prioridad (abajo) | `<label>_xyz_f64.npy` + `<label>_otu.npy` (conjuntos sin repetidas, `*_gt`) | `<label>_thin_<regla>_<d>km_s<semilla>.npy` (bool) |
 
-Las referencias las genera `scripts/05_references.py` en CPU (float64). La
+Las referencias las genera `scripts/05_references.py` en CPU. La biblioteca solo
+trabaja en float32, así que hay **dos** referencias: `--coords f64` (la verdad
+geodésica) y `--coords f32c` (sufijo `_f32c`: las mismas coordenadas float32
+centradas que recibe la GPU, promovidas a float64). Contra `_f32c` se exige
+igualdad exacta (errores de implementación); contra f64 se **reporta** la
+diferencia (efecto de la cuantización float32). Medido en CPU: atún a 10/25/50
+km, 36/40/59 conteos distintos de 80 163 y **cero** máscaras W2 distintas;
+tortuga, 2 conteos a 10 km.
+
+Vecinos si d < r estricto. La biblioteca compara `<=`, y en float32 escalar el
+radio por (1 − 1e-12) no cambia nada: pasar `nextafterf(r, 0.f)` y confirmarlo
+contra `_f32c`. Los pares a distancia 0 (repetidos) sí son vecinos; en W1 se
+resta solo el propio punto.
+
+Grilla densa: calcular el número de celdas en 64 bits **antes** de construir.
+Si supera 2³²−1 o la memoria libre, registrar la fila como `no ejecutable` con
+el número de celdas (es un resultado: con datos globales la grilla densa
+reserva memoria para el interior de la Tierra). El atún a 10 km son ~2,07×10⁹
+celdas (~16,6 GB): cabe en la L40S (48 GB) y se reporta su memoria. La
 validación es **igualdad exacta** de conteos (W1) y de conjuntos (W2), no de
 promedios. Para N > 400 000 no hay referencia W1 en CPU (tardaría horas con
 registros apilados en la misma coordenada): ahí se exige que las **tres

@@ -21,9 +21,7 @@ MAX_UNCERTAINTY_M = 1000.0
 BAD_BASIS = {"FOSSIL_SPECIMEN", "LIVING_SPECIMEN"}
 
 
-# ----------------------------------------------------------------------------
 # Lectura
-# ----------------------------------------------------------------------------
 LAT_NAMES = ("decimallatitude", "lat", "latitude", "y")
 LON_NAMES = ("decimallongitude", "lon", "lng", "longitude", "x")
 # Columnas de GBIF que usa el pipeline (el resto se ignora al leer).
@@ -81,9 +79,7 @@ def read_any(path, lat_col=None, lon_col=None):
     return df.rename(columns={lat: "lat", lon: "lon"})
 
 
-# ----------------------------------------------------------------------------
 # Limpieza, paso a paso, dejando constancia de cada descarte
-# ----------------------------------------------------------------------------
 def clean(df, keep_duplicates=False, round_decimals=5,
           max_uncertainty=MAX_UNCERTAINTY_M):
     """Aplica las reglas en orden. Devuelve (df_limpio, pasos).
@@ -181,9 +177,7 @@ def otu_key(df, single=None):
     return out
 
 
-# ----------------------------------------------------------------------------
 # Geometria
-# ----------------------------------------------------------------------------
 def to_cartesian(lat_deg, lon_deg, radius=R_EARTH):
     """lat/lon en grados -> (N, 3) en metros sobre la esfera. float64."""
     lat = np.radians(np.asarray(lat_deg, dtype=np.float64))
@@ -225,9 +219,7 @@ def chord_check(df, xyz, pairs=2000, seed=42):
     return np.abs(chord_to_arc(chord) - arc), arc
 
 
-# ----------------------------------------------------------------------------
 # Lo que ve la grilla
-# ----------------------------------------------------------------------------
 def cell_counts(xyz, cell, origin_shift=(0.0, 0.0, 0.0)):
     """Conteos por celda de una grilla uniforme 3D con celda = 'cell' metros.
 
@@ -251,9 +243,7 @@ def morisita(counts, Q, N):
     return float(Q * np.sum(counts * (counts - 1.0)) / (N * (N - 1.0)))
 
 
-# ----------------------------------------------------------------------------
 # Morisita en el plano (la forma correcta)
-# ----------------------------------------------------------------------------
 # En la grilla 3D, Q (celdas totales del bbox) incluye celdas en el interior
 # de la Tierra donde nunca puede caer un punto, asi que Morisita sale inflado
 # incluso para datos aleatorios. Los ecologos definen el indice sobre

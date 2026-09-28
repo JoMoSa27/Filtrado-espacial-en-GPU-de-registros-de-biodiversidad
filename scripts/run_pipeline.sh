@@ -81,7 +81,7 @@ for entry in "${DATASETS[@]}"; do
   READY+=("$label|$input")
 done
 
-# ---------------------------------------------------------------- E1 --------
+# E1
 CR=()
 for r in "${READY[@]}"; do
   case "${r%%|*}" in aves_2018|insecta_2018|plantae|amphibia) CR+=("$r");; esac
@@ -119,7 +119,7 @@ else
   log "E1 pendiente: hacen falta al menos 2 taxones de Costa Rica (hay ${#CR[@]})"
 fi
 
-# ---------------------------------------------------------------- E2 --------
+# E2
 AVES=""
 for r in "${READY[@]}"; do [ "${r%%|*}" = "aves_2018" ] && AVES="${r#*|}"; done
 if [ -n "$AVES" ]; then
@@ -135,7 +135,7 @@ else
   log "E2 pendiente: falta Aves 2018"
 fi
 
-# ---------------------------------------------------------------- E3 --------
+# E3
 # Misma entrada que publico GeoThinneR: todos los registros, sin filtro de
 # incertidumbre ni de duplicados (GeoThinneR colapsa duplicados exactos solo).
 for gt in "tortuga_gt|data/raw/geothinner/caretta.rda|Caretta caretta" \
@@ -151,7 +151,7 @@ for gt in "tortuga_gt|data/raw/geothinner/caretta.rda|Caretta caretta" \
     || echo "  !! fallo E3 $label"
 done
 
-# ---------------------------------------------------------------- E4 --------
+# E4
 # Filtrado por especie (lo que de verdad hace un biologo), con la referencia
 # exacta (W2) que debe reproducir la GPU y el CSV de entrada para GeoThinneR.
 for r in "${READY[@]}"; do
@@ -163,7 +163,7 @@ for r in "${READY[@]}"; do
     || echo "  !! fallo E4 $label"
 done
 
-# ------------------------------------------------ referencias W1 para GPU ---
+# referencias W1 para GPU
 # Conteos exactos de vecinos (cKDTree, float64). Su tiempo es la linea base en
 # CPU (<label>_cpu_w1.json). Sobre N > 400 000 se omite: la GPU se valida ahi
 # por acuerdo entre sus tres estructuras.
@@ -179,11 +179,11 @@ for f in data/processed/e1_*_xyz_f64.npy data/processed/e2_*_xyz_f64.npy \
     || echo "  !! fallo W1 f32c $label"
 done
 
-# --------------------------------------------------------------- figuras ---
+# figuras
 [ -f data/processed/atun_gt_por_especie.csv ] && [ -f data/processed/tortuga_gt_por_especie.csv ] \
   && $PY $S/fig_thinning.py
 
-# ---------------------------------------------------------------- resumen ---
+# resumen
 log "Resumen"
 $PY - << 'EOF'
 import json, glob, os

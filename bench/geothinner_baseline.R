@@ -35,6 +35,7 @@ for (m in methods) for (d in dists) for (r in seq_len(reps)) {
     error = function(e) e))
   ok <- !inherits(res, "error")
   kept <- if (ok) sum(res$retained[[1]]) else NA
+  
   # Mascara de la primera repeticion: 05/validar confirma sobre la salida REAL
   # de GeoThinneR si quedan registros agregables (conjunto no maximal).
   if (ok && r == 1) {

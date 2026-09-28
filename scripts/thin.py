@@ -37,9 +37,7 @@ from geo import chord_radius
 _STRICT = 1.0 - 1e-12
 
 
-# ----------------------------------------------------------------------------
 # Grafo de vecinos
-# ----------------------------------------------------------------------------
 def neighbor_csr(xyz, d_m, r=None):
     """Pares a menos de d (geodesica) -> grafo en formato CSR (indptr, indices).
 
@@ -69,9 +67,7 @@ def neighbor_csr(xyz, d_m, r=None):
     return indptr, indices, P
 
 
-# ----------------------------------------------------------------------------
 # Regla de GeoThinneR (maxdeg) con cola de cubetas O(n + P) por intento
-# ----------------------------------------------------------------------------
 @nb.njit(cache=True)
 def _dec(u, deg, start, order, pos):
     """Baja el grado de u en 1 moviendolo a la frontera de su cubeta."""
@@ -148,9 +144,7 @@ def thin_maxdeg(indptr, indices, trials=10, seed=0, keep_all=False):
     return (best, counts, todas) if keep_all else (best, counts)
 
 
-# ----------------------------------------------------------------------------
 # Voraz por prioridad: secuencial y por rondas paralelas (mismo resultado)
-# ----------------------------------------------------------------------------
 @nb.njit(cache=True)
 def _greedy_sequential(indptr, indices, order):
     n = indptr.size - 1
@@ -265,9 +259,7 @@ def thin_greedy(indptr, indices, rule="random", seed=0, check_rounds=True, ids=N
     return kept, rounds, work
 
 
-# ----------------------------------------------------------------------------
 # Validacion
-# ----------------------------------------------------------------------------
 def validate(xyz, kept, d_m, indptr, indices):
     """(pares conservados a menos de d, puntos agregables).
     Un filtrado correcto da 0 en lo primero. Lo segundo cuenta descartados sin
@@ -294,9 +286,7 @@ def _addable(indptr, indices, kept):
     return c
 
 
-# ----------------------------------------------------------------------------
 # Todo junto para un conjunto de puntos
-# ----------------------------------------------------------------------------
 def run_all(xyz, d_m, trials=10, seed=0, check=True, ids=None, csr=None):
     """Corre las tres reglas y devuelve un dict con tiempos y retenidos.
     'trabajo_*' = aristas revisadas con salida temprana (todas las rondas);

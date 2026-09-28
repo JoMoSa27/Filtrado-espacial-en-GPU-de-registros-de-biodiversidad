@@ -1,17 +1,18 @@
-// npy.hpp — Lector minimo de arreglos .npy de NumPy (solo C-order).
+// npy.hpp — Lector de arreglos .npy de NumPy, restringido a C-order.
 //
-// POR QUE UN LECTOR PROPIO
-//   El pipeline entrega los datos como .npy y la validacion exige comparar
-//   contra las referencias de 05_references.py archivo por archivo. Meter una
-//   dependencia (cnpy, xtensor) por leer una cabecera de 128 bytes no se
-//   justifica, y en Kabre cada dependencia es un modulo mas que cargar.
+// El pipeline entrega los datos como .npy y la validacion compara contra las
+// referencias de 05_references.py archivo por archivo. Se implementa aqui, en
+// lugar de enlazar una dependencia externa, porque solo hace falta interpretar
+// una cabecera de tamanno fijo y en Kabre cada dependencia supone un modulo
+// adicional.
 //
-// QUE SOPORTA
-//   dtypes: <f8 (float64), <f4 (float32), <i4 (int32), |b1 (bool)
-//   forma:  1-D (N,) y 2-D (N,3); siempre C-order.
-//   Si el archivo viene en fortran_order se aborta: transponer en silencio
-//   produciria coordenadas mezcladas que pasan todas las comprobaciones de
-//   tamanno y fallan solo en los conteos, que es el peor sitio donde enterarse.
+// Formatos admitidos:
+//   dtypes  <f8 (float64), <f4 (float32), <i4 (int32), |b1 (bool)
+//   formas  1-D (N,) y 2-D (N,3), siempre C-order
+//
+// Un archivo con fortran_order aborta la lectura. Transponerlo de forma
+// implicita produciria coordenadas permutadas que superan las comprobaciones de
+// tamanno y solo se manifiestan como conteos erroneos.
 #pragma once
 
 #include <cstdint>
@@ -39,7 +40,15 @@ inline size_t itemsize(const std::string& d) {
     throw std::runtime_error("npy: dtype no soportado: " + d);
 }
 
-/** Lee la cabecera y deja el stream posicionado al inicio de los datos. */
+/**
+ * Lee la cabecera .npy y deja el stream posicionado al inicio de los datos.
+ *
+ * @param f     stream abierto en binario, posicionado al principio del archivo
+ * @param path  ruta, solo para los mensajes de error
+ * @return      dtype, filas, columnas y desplazamiento de los datos
+ * @throws std::runtime_error  si no es un .npy, si falta un campo de la
+ *                             cabecera o si el arreglo viene en fortran_order
+ */
 inline Header read_header(std::ifstream& f, const std::string& path) {
     char magic[6] = {};
     f.read(magic, 6);
@@ -67,8 +76,9 @@ inline Header read_header(std::ifstream& f, const std::string& path) {
     Header h;
     h.data_offset = static_cast<size_t>(f.tellg());
 
-    // El diccionario es un literal de Python; se extraen tres campos por
-    // busqueda directa en vez de parsearlo, que para este formato fijo alcanza.
+    // La cabecera es un literal de diccionario de Python. Se extraen los tres
+    // campos por busqueda directa, suficiente para el formato fijo que escribe
+    // numpy.save.
     auto field = [&](const char* key) -> size_t {
         size_t p = dict.find(key);
         if (p == std::string::npos)
@@ -104,12 +114,19 @@ inline Header read_header(std::ifstream& f, const std::string& path) {
 }
 
 /**
- * Carga un .npy a un vector<T>, convirtiendo desde el dtype del archivo.
+ * Carga un .npy en un vector<T>, convirtiendo desde el dtype del archivo.
  *
- * La conversion es explicita y no silenciosa: se pide T y se acepta cualquier
- * dtype de la lista, porque las coordenadas llegan en float64 y la biblioteca
- * las consume en float32. Ese estrechamiento es una decision del diseno
- * (bench/README.md), no un accidente, asi que se hace aqui y en un solo sitio.
+ * Se admite cualquier dtype de la lista y se convierte a T. El estrechamiento
+ * de float64 a float32 responde al diseno descrito en bench/README.md: las
+ * coordenadas se generan en float64 y la biblioteca de estructuras las consume
+ * en float32. La conversion se concentra en esta funcion.
+ *
+ * @param path  ruta del archivo
+ * @param rows  [out, opcional] primera dimension
+ * @param cols  [out, opcional] segunda dimension, 1 si el arreglo es 1-D
+ * @return      vector de rows*cols elementos en C-order
+ * @throws std::runtime_error  si el archivo no se abre, no es .npy, viene en
+ *                             fortran_order o esta truncado
  */
 template <typename T>
 std::vector<T> load(const std::string& path, size_t* rows = nullptr,
@@ -144,7 +161,7 @@ std::vector<T> load(const std::string& path, size_t* rows = nullptr,
     return out;
 }
 
-/** true si el archivo existe y se puede abrir. */
+/** true si el archivo existe y puede abrirse para lectura. */
 inline bool exists(const std::string& path) {
     std::ifstream f(path, std::ios::binary);
     return static_cast<bool>(f);

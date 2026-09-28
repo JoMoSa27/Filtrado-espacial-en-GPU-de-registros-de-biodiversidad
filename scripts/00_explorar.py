@@ -41,7 +41,7 @@ import geo
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS = ROOT / "reports"
 
-# --- Estilo -----------------------------------------------------------------
+# Estilo
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"
 INK2 = "#52514e"
@@ -79,7 +79,7 @@ def table(df, max_rows=12):
                                      float_format=lambda x: f"{x:,.4g}")
 
 
-# --- Pasos ------------------------------------------------------------------
+# Pasos
 def paso1_archivo(raw):
     info = pd.DataFrame({
         "columna": raw.columns,
@@ -302,7 +302,7 @@ def paso7_vecinos(xyz, ref_xyz, main_km, max_queries):
     return stats, fig_to_b64(fig)
 
 
-# --- HTML -------------------------------------------------------------------
+# HTML
 CSS = """
 :root{--s:#fcfcfb;--i:#0b0b0b;--i2:#52514e;--g:#e4e3df;--a:#2a78d6;--card:#f4f3f0}
 body{background:var(--s);color:var(--i);font:15px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;

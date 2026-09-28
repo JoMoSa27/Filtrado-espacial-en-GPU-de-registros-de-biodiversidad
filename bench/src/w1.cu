@@ -3,34 +3,36 @@
  * @brief W1 — densidad de registros del grupo objetivo: para cada registro,
  *        cuantos OTROS estan a menos de d (geodesica, via radio de cuerda).
  *
- * Es la consulta que sostiene la correccion de esfuerzo de muestreo
- * (*target-group density*, Phillips et al. 2009) y la mitad de lo que pesa el
- * filtrado. Aqui se mide sobre las tres estructuras de la biblioteca del
- * trabajo previo, que se consume SIN modificarla.
+ * Corresponde a la correccion de esfuerzo de muestreo por densidad del grupo
+ * objetivo (Phillips et al. 2009) y constituye la parte dominante del coste del
+ * filtrado. Se mide sobre las tres estructuras de la biblioteca del trabajo
+ * previo, que se consume sin modificarla.
  *
- * QUE SE COMPARA CONTRA QUE
- *   La biblioteca trabaja en float32 (CoordPtrs<Dim> es const float*), asi que
- *   consume <label>_xyz_f32_centered.npy y se valida contra la referencia
- *   calculada sobre ESAS MISMAS coordenadas:
+ * Referencias de validacion
+ *   La biblioteca opera en float32, dado que CoordPtrs<Dim> es const float*, de
+ *   modo que consume <label>_xyz_f32_centered.npy y se valida contra la
+ *   referencia calculada sobre esas mismas coordenadas:
  *
- *     <label>_count_<d>km_f32c.npy   igualdad EXACTA   -> columna 'discrepancias'
- *     <label>_count_<d>km.npy        solo se reporta   -> columna 'dif_f64' del log
+ *     <label>_count_<d>km_f32c.npy   igualdad exacta, columna 'discrepancias'
+ *     <label>_count_<d>km.npy        diferencia informada en el log
  *
- *   Comparar contra la referencia float64 y exigir cero seria pedirle a la
- *   estructura que corrija un redondeo que ocurre antes de que ella vea los
- *   datos. Medido en CPU, el atun da 36/40/59 conteos distintos de 80 163.
+ *   Exigir igualdad contra la referencia float64 equivaldria a pedir a la
+ *   estructura que compense una cuantizacion anterior a su entrada. Segun
+ *   bench/README.md, el atun difiere en 36, 40 y 59 conteos de 80 163 a 10, 25
+ *   y 50 km respectivamente.
  *
- * MENOR ESTRICTO Y AUTO-CONTEO
- *   El radio que recibe la biblioteca es nextafterf(cuerda, 0) porque sus
- *   consultas comparan con <= (ver bench_common.cuh). Y count_in_radius cuenta
- *   el propio punto, que esta a distancia 0: se resta UNO, no los duplicados
- *   coincidentes, que son vecinos legitimos y en las nubes _dup son la mayoria.
+ * Condicion de vecindad
+ *   El radio que recibe la biblioteca es nextafterf(cuerda, 0), porque sus
+ *   consultas comparan con <= (vease bench_common.cuh). count_in_radius incluye
+ *   el propio punto, situado a distancia 0, de modo que se resta una unidad.
+ *   Las presencias repetidas, tambien a distancia 0, son vecinos validos y se
+ *   conservan; en las nubes _dup constituyen la mayoria.
  *
- * GRILLA
- *   Celda = radio de consulta en todas las filas, nunca autodimensionada. El
- *   numero de celdas se calcula en 64 bits antes de construir; si no cabe en
- *   uint32_t o en memoria, la fila se registra como 'no_ejecutable' con el
- *   numero de celdas, en vez de omitirla.
+ * Grilla
+ *   La arista de celda es igual al radio de consulta en todas las filas. El
+ *   numero de celdas se evalua en 64 bits antes de construir; si excede
+ *   uint32_t o la memoria disponible, la fila se registra como 'no_ejecutable'
+ *   junto con ese numero, en lugar de omitirse.
  *
  * USO
  *   bench_w1 --label tortuga_gt --radii-km 10 25 50 \
@@ -52,14 +54,22 @@
 
 using Metrica = Cartesian<3>;
 
-// ── Kernel de conteo ─────────────────────────────────────────────────────────
+// Kernel de conteo
 /**
- * Un hilo por registro. El registro es a la vez punto y consulta, asi que se
- * descuenta a si mismo.
+ * Un hilo por registro. Cada registro actua a la vez como punto y como
+ * consulta, de modo que se descuenta a si mismo.
  *
- * `overflow` se propaga: si una estructura abandona parte del recorrido (pila
- * llena en kd-tree/BVH, caja de celdas no representable en la grilla) el
- * conteo es una cota inferior y la fila no puede declararse valida.
+ * `overflow` se propaga porque, si una estructura abandona parte del recorrido
+ * (pila llena en el kd-tree o el BVH, caja de celdas no representable en la
+ * grilla), el conteo resultante es una cota inferior y la fila no puede
+ * declararse valida.
+ *
+ * @param ds          estructura ya construida, pasada por valor
+ * @param pts         coordenadas en device, SoA de tres componentes
+ * @param radio       radio de cuerda en metros, ya estricto
+ * @param out         [out] conteo por registro, N elementos int32
+ * @param n_overflow  [out] numero de consultas con recorrido incompleto
+ * @param n           numero de registros
  */
 template <typename DS>
 __global__ void w1_k(DS ds, CoordPtrs<3> pts, float radio,
@@ -75,7 +85,7 @@ __global__ void w1_k(DS ds, CoordPtrs<3> pts, float radio,
     if (ov) atomicAdd(n_overflow, 1u);
 }
 
-// ── Utilidades ───────────────────────────────────────────────────────────────
+// Utilidades
 
 struct Nube {
     uint32_t           n = 0;
@@ -95,8 +105,14 @@ struct Nube {
     void liberar() { for (int d = 0; d < 3; d++) if (dev_raw[d]) cudaFree(dev_raw[d]); }
 };
 
-/** Carga <label>_xyz_f32_centered.npy (N,3) y lo pasa a SoA, que es lo que
- *  consumen las estructuras (CoordPtrs<Dim> es un arreglo por coordenada). */
+/**
+ * Carga <label>_xyz_f32_centered.npy, de forma (N,3) float32, y lo reorganiza
+ * en SoA, que es el formato que consumen las estructuras: CoordPtrs<Dim>
+ * contiene un puntero por coordenada. Calcula ademas el bbox, necesario para
+ * dimensionar la grilla.
+ *
+ * @throws std::runtime_error  si el arreglo no tiene tres columnas
+ */
 static Nube cargar(const std::string& processed, const std::string& label) {
     const std::string p = processed + "/" + label + "_xyz_f32_centered.npy";
     size_t filas = 0, cols = 0;
@@ -123,16 +139,19 @@ static Nube cargar(const std::string& processed, const std::string& label) {
 /**
  * Discrepancias contra una referencia .npy, o -1 si la referencia no esta.
  *
- * Si `volcado` no es vacio y hay discrepancias, escribe un CSV con una fila por
- * registro que difiere: indice, conteo de la GPU y conteo de la referencia.
+ * Si `volcado` no esta vacio y existen discrepancias, escribe un CSV con una
+ * fila por registro que difiere: indice, conteo de la GPU y conteo de la
+ * referencia.
  *
- * POR QUE SE VUELCAN LOS INDICES
- *   El ruido residual de float32 no es cero: la GPU acumula distance_sq en
- *   float32 y la referencia en float64 sobre las mismas coordenadas, asi que un
- *   par que cae a menos de ~1 cm del radio puede quedar de un lado u otro. Un
- *   conteo agregado no distingue eso de un error de implementacion. Con los
- *   indices, scripts/08_check_w1.py recalcula en float64 la distancia de cada
- *   par dudoso y decide: todos cerca del radio => ruido; alguno lejos => bug.
+ * Los indices se vuelcan porque el ruido residual de float32 no es nulo: la GPU
+ * acumula distance_sq en float32 y la referencia en float64 sobre las mismas
+ * coordenadas, de modo que un par situado a menos de un centimetro del radio
+ * puede quedar a un lado o a otro. Un conteo agregado no permite distinguir ese
+ * caso de un error de implementacion. Con los indices, scripts/08_check_w1.py
+ * recalcula en float64 la distancia de cada par dudoso y resuelve la
+ * ambiguedad.
+ *
+ * @return  numero de registros con conteo distinto, o -1 si falta la referencia
  */
 static long long comparar(const std::string& ruta, const std::vector<int32_t>& got,
                           const std::string& volcado = "") {
@@ -160,13 +179,17 @@ static long long comparar(const std::string& ruta, const std::vector<int32_t>& g
     return dif;
 }
 
-// ── Medicion de una estructura a un radio ────────────────────────────────────
+// Medicion de una estructura a un radio
 
 static constexpr int REPS = 10;   ///< 1 calentamiento + 10 medidas (README)
 
 /**
- * Construye, consulta REPS+1 veces y escribe una fila por repeticion.
- * `construir` recibe la estructura por referencia y la deja lista.
+ * Construye la estructura, ejecuta la consulta REPS+1 veces y escribe una fila
+ * del CSV por repeticion medida. La primera pasada, con rep = -1, es de
+ * calentamiento y se emplea para validar contra las referencias.
+ *
+ * @param construir  invocable que recibe la estructura por referencia y la
+ *                   deja construida
  */
 template <typename DS, typename Construir>
 static void medir(const char* nombre, const Nube& c, float radio, double d_km,
@@ -242,7 +265,7 @@ static void medir(const char* nombre, const Nube& c, float radio, double d_km,
     CUDA_CHECK(cudaFree(d_ov));
 }
 
-// ── main ─────────────────────────────────────────────────────────────────────
+// main
 
 int main(int argc, char** argv) {
     std::string label, processed = "../data/processed", out = "w1.csv", lib_dir;
@@ -288,7 +311,7 @@ int main(int argc, char** argv) {
         std::snprintf(tag, sizeof(tag), "%g", km);
         const std::string ref_f32c = processed + "/" + label + "_count_" + tag + "km_f32c.npy";
         const std::string ref_f64  = processed + "/" + label + "_count_" + tag + "km.npy";
-        // Base del volcado de discrepancias; medir() le anade la estructura.
+        // Base del nombre del volcado; medir() anade el nombre de la estructura.
         const std::string volcado = out.substr(0, out.find_last_of('.')) +
                                     "_dif_" + label + "_" + tag + "km";
 
@@ -301,26 +324,27 @@ int main(int argc, char** argv) {
         plantilla.gpu = env.gpu;
         plantilla.cuda = env.cuda;
 
-        // ── k-d tree ─────────────────────────────────────────────────────────
+        // k-d tree
         medir<KDTree<Metrica, 3>>("KDTree", c, radio, km, plantilla, csv,
                                   ref_f32c, ref_f64, volcado,
                                   [&](KDTree<Metrica, 3>& ds) {
                                       ds.build_device(c.dev, c.n, Metrica{});
                                   });
 
-        // ── LBVH ─────────────────────────────────────────────────────────────
+        // LBVH
         medir<LinearBVH<Metrica, 3>>("LinearBVH", c, radio, km, plantilla, csv,
                                      ref_f32c, ref_f64, volcado,
                                      [&](LinearBVH<Metrica, 3>& ds) {
                                          ds.build_device(c.dev, c.n, Metrica{});
                                      });
 
-        // ── Grilla, celda = radio ────────────────────────────────────────────
-        // Se decide ANTES de construir: la grilla es densa sobre el bbox y con
-        // una nube global el numero de celdas puede desbordar uint32_t o no
-        // caber en memoria. La fila no ejecutable se registra igual, con el
-        // numero de celdas, porque ese numero es un resultado del paper: la
-        // grilla densa reserva memoria para el interior de la Tierra.
+        // Grilla, celda = radio
+        // La comprobacion precede a la construccion: la grilla es densa sobre
+        // el bbox y con una nube global el numero de celdas puede desbordar
+        // uint32_t o exceder la memoria. La fila no ejecutable se registra con
+        // ese numero de celdas, que es en si mismo un resultado: una grilla
+        // densa sobre datos globales reserva memoria para el interior de la
+        // Tierra.
         const GridSize g = grid_cells(c.mn, c.mx, radio, sizeof(GridCell), free_bytes());
         std::printf("  %-12s celdas %llu (%.2f GB)%s\n", "UniformGrid",
                     g.n_cells, g.bytes / (1024.0 * 1024.0 * 1024.0),
@@ -330,7 +354,7 @@ int main(int argc, char** argv) {
             Row r = plantilla;
             r.estructura    = "UniformGrid";
             r.valido        = "no_ejecutable";
-            r.vecinos_total = static_cast<long long>(g.n_cells);  // el dato que interesa
+            r.vecinos_total = static_cast<long long>(g.n_cells);
             r.mem_pico_mb   = g.bytes / (1024.0 * 1024.0);
             csv_row(csv, r);
         } else {

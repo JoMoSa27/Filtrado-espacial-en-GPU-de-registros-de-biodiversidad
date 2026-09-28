@@ -68,7 +68,7 @@ using Metrica = Cartesian<3>;
 /// 1 calentamiento + 10 medidas, igual que W1 (bench/README.md).
 static constexpr int REPS_W2 = 10;
 
-// ── splitmix64 ───────────────────────────────────────────────────────────────
+// splitmix64
 // Steele, Lea y Flood (2014). Se valida bit a bit contra bench/splitmix_vectors.csv.
 
 __host__ __device__ __forceinline__ uint64_t splitmix64(uint64_t x) {
@@ -83,7 +83,7 @@ __host__ __device__ __forceinline__ uint64_t record_hash(uint64_t id, uint64_t s
     return splitmix64(id ^ splitmix64(seed));
 }
 
-// ── Estado del voraz ─────────────────────────────────────────────────────────
+// Estado del voraz
 
 enum : int8_t { SIN_DECIDIR = 0, DENTRO = 1, FUERA = 2 };
 
@@ -102,7 +102,7 @@ __device__ __forceinline__ bool clave_mayor(uint32_t u, uint32_t v,
     return u > v;
 }
 
-// ── Kernels del CSR ──────────────────────────────────────────────────────────
+// Kernels del CSR
 
 template <typename DS>
 __global__ void contar_k(DS ds, CoordPtrs<3> pts, float radio,
@@ -160,7 +160,7 @@ __global__ void reubicar_k(const uint64_t* off_viejo, const uint64_t* off_nuevo,
     for (int32_t j = 0; j < d; j++) dst[b + j] = src[a + j];
 }
 
-// ── Kernels de las rondas ────────────────────────────────────────────────────
+// Kernels de las rondas
 
 __global__ void hash_k(uint64_t* h, uint64_t seed, uint32_t n) {
     const uint32_t v = threadIdx.x + blockIdx.x * blockDim.x;
@@ -217,7 +217,7 @@ __global__ void marcar_sin_otu_k(const int32_t* otu, int8_t* estado, uint32_t n)
     if (otu[v] < 0) estado[v] = FUERA;
 }
 
-// ── Carga ────────────────────────────────────────────────────────────────────
+// Carga
 
 struct Nube {
     uint32_t           n = 0;
@@ -274,7 +274,7 @@ static Nube cargar(const std::string& processed, const std::string& label) {
     return c;
 }
 
-// ── El filtrado completo sobre una estructura ────────────────────────────────
+// El filtrado completo sobre una estructura
 
 struct Resultado {
     double   build_ms = 0, query_ms = 0;
@@ -422,7 +422,7 @@ static Resultado filtrar(const Nube& c, float radio, bool usar_grado,
     return R;
 }
 
-// ── Validacion ───────────────────────────────────────────────────────────────
+// Validacion
 
 /** Discrepancias contra la mascara de referencia, o -1 si no esta. */
 static long long comparar_mascara(const std::string& ruta,
@@ -485,7 +485,7 @@ static bool verificar_splitmix(const std::string& ruta) {
     return malos == 0 && n > 0;
 }
 
-// ── main ─────────────────────────────────────────────────────────────────────
+// main
 
 int main(int argc, char** argv) {
     std::string label, processed = "../data/processed", out = "w2.csv", lib_dir,

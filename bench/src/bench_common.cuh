@@ -1,8 +1,8 @@
 // bench_common.cuh — Piezas compartidas por W1 y W2.
 //
-// Concentra las cuatro cosas que el diseno (bench/README.md) exige medir o
-// garantizar igual en todas las filas del CSV: el radio estricto, el
-// temporizador, la memoria pico y el esquema de salida.
+// Reune lo que bench/README.md exige medir o garantizar de forma identica en
+// todas las filas del CSV: el radio estricto, el temporizador, la memoria pico
+// y el esquema de salida.
 #pragma once
 
 #include <cmath>
@@ -22,7 +22,7 @@
     }                                                                         \
 } while (0)
 
-// ── Geometria ────────────────────────────────────────────────────────────────
+// Geometria
 
 /// Radio medio WGS84, el mismo que geo.R_EARTH.
 static constexpr double R_EARTH = 6371008.8;
@@ -33,24 +33,27 @@ inline double chord_radius(double d_m, double radius = R_EARTH) {
 }
 
 /**
- * Radio que la biblioteca debe recibir para que "vecino" signifique
- * ESTRICTAMENTE menor que d, como en GeoThinneR y en thin.py.
+ * Radio en metros que debe recibir la biblioteca para que la condicion de
+ * vecindad sea estrictamente menor que d, como en GeoThinneR y en thin.py.
  *
- * thin.py lo consigue multiplicando por (1 - 1e-12), pero eso es un truco de
- * float64: en float32 ese factor no cambia ni un bit, asi que el `<=` de la
- * biblioteca seguiria contando el par que cae exactamente sobre el radio.
- * nextafterf baja al float inmediatamente anterior, que es el minimo cambio
- * que convierte `<=` en `<` sin mover nada mas.
+ * Las consultas de la biblioteca comparan con <=. En float64 la referencia
+ * obtiene el estricto multiplicando por (1 - 1e-12), pero en float32 ese factor
+ * no altera ningun bit, de modo que el par situado exactamente sobre el radio
+ * seguiria contandose. nextafterf devuelve el float inmediatamente inferior,
+ * que es la minima correccion que convierte <= en <.
  *
- * (Con coordenadas a 5 decimales los pares exactamente a distancia d son
- * rarisimos; los que abundan son los pares a distancia 0, que son vecinos
- * legitimos y no los toca esto.)
+ * Los pares a distancia exactamente d son infrecuentes con coordenadas
+ * redondeadas a cinco decimales. Los pares a distancia 0, procedentes de
+ * presencias repetidas, son vecinos validos y no se ven afectados.
+ *
+ * @param d_m  distancia geodesica en metros
+ * @return     radio de cuerda en metros, representable en float32
  */
 inline float strict_radius_f32(double d_m) {
     return std::nextafterf(static_cast<float>(chord_radius(d_m)), 0.0f);
 }
 
-// ── Temporizador ─────────────────────────────────────────────────────────────
+// Temporizador
 
 struct GpuTimer {
     cudaEvent_t a{}, b{};
@@ -66,14 +69,15 @@ struct GpuTimer {
     }
 };
 
-// ── Memoria ──────────────────────────────────────────────────────────────────
+// Memoria
 
 /**
- * Memoria pico por diferencia contra la libre al inicio.
+ * Memoria pico, calculada por diferencia contra la memoria libre inicial.
  *
- * cudaMemGetInfo mide el dispositivo entero, no el proceso, asi que en un nodo
- * compartido el numero puede incluir a otros. En nukwa-l40s el trabajo toma la
- * GPU completa, asi que sirve; queda anotado porque la cifra va al paper.
+ * cudaMemGetInfo informa del dispositivo completo y no del proceso, de modo que
+ * en un nodo compartido la cifra podria incluir otros trabajos. En nukwa-l40s
+ * el trabajo dispone de la GPU entera. La limitacion se documenta porque el
+ * valor se publica en el paper.
  */
 struct MemProbe {
     size_t libre_inicial = 0, total = 0, pico_usado = 0;
@@ -92,26 +96,17 @@ struct MemProbe {
     double pico_mb() const { return pico_usado / (1024.0 * 1024.0); }
 };
 
-/** Memoria libre ahora, en bytes. Para decidir si una fila es ejecutable. */
+/** Memoria libre del dispositivo en bytes, usada para decidir si una fila es
+ *  ejecutable antes de intentar construir la grilla. */
 inline size_t free_bytes() {
     size_t libre = 0, total = 0;
     CUDA_CHECK(cudaMemGetInfo(&libre, &total));
     return libre;
 }
 
-// ── Grilla: cuantas celdas pide una celda = radio ────────────────────────────
+// Grilla: cuantas celdas pide una celda = radio
 
-/**
- * Numero de celdas de una grilla densa de celda `cell` sobre el bbox dado,
- * calculado en 64 bits ANTES de construir.
- *
- * Existe porque la grilla es densa sobre el bounding box y el tamanno de celda
- * queda fijado al radio de consulta en todas las filas. Para una nube global
- * como el atun el bbox es el cubo terrestre (12 742 km por eje), asi que a
- * 10 km son ~2,07e9 celdas — y el contador interno de la biblioteca es
- * uint32_t, que a radios mas chicos daria la vuelta en silencio. Aqui se
- * calcula en unsigned long long y la fila se declara no ejecutable si no cabe.
- */
+/** Resultado de grid_cells: dimensionamiento y si la fila puede ejecutarse. */
 struct GridSize {
     unsigned long long n_cells = 0;
     unsigned long long bytes   = 0;
@@ -120,6 +115,22 @@ struct GridSize {
     bool ejecutable() const { return cabe_en_u32 && cabe_en_mem; }
 };
 
+/**
+ * Numero de celdas de una grilla densa de arista `cell` sobre el bbox dado,
+ * calculado en 64 bits antes de construir la estructura.
+ *
+ * El tamanno de celda queda fijado al radio de consulta en todas las filas y la
+ * grilla es densa sobre el bounding box. Con una nube global como el atun el
+ * bbox es el cubo terrestre, 12 742 km por eje, lo que a 10 km supone unas
+ * 2,07e9 celdas. El contador interno de la biblioteca es uint32_t y a radios
+ * menores desbordaria sin aviso, de modo que el producto se evalua aqui en
+ * unsigned long long y la fila se declara no ejecutable si no cabe.
+ *
+ * @param mn, mx           extremos del bbox en metros, tres componentes
+ * @param cell             arista de la celda en metros
+ * @param bytes_por_celda  sizeof(GridCell)
+ * @param libre            memoria libre del dispositivo en bytes
+ */
 inline GridSize grid_cells(const float mn[3], const float mx[3], float cell,
                            size_t bytes_por_celda, size_t libre) {
     GridSize g;
@@ -131,13 +142,13 @@ inline GridSize grid_cells(const float mn[3], const float mx[3], float cell,
     }
     g.bytes = g.n_cells * bytes_por_celda;
     g.cabe_en_u32 = g.n_cells <= 0xFFFFFFFFull;
-    // Margen del 10 %: ademas de las celdas hay prim_ids, scratch de CUB y las
-    // coordenadas ya subidas.
+    // Margen del 10 %: ademas de las celdas hacen falta prim_ids, el scratch de
+    // CUB y las coordenadas ya residentes en el dispositivo.
     g.cabe_en_mem = g.bytes < static_cast<unsigned long long>(libre * 0.90);
     return g;
 }
 
-// ── CSV ──────────────────────────────────────────────────────────────────────
+// CSV
 
 /// Una fila del CSV, con las columnas exactas de bench/README.md.
 struct Row {
@@ -181,9 +192,9 @@ inline void csv_row(std::FILE* f, const Row& r) {
     std::fflush(f);
 }
 
-// ── Entorno (va al CSV para reproducibilidad) ────────────────────────────────
+// Entorno, registrado en el CSV para reproducibilidad
 
-/** Salida de un comando, sin salto de linea final. "" si falla. */
+/** Salida de un comando sin el salto de linea final; cadena vacia si falla. */
 inline std::string shell(const std::string& cmd) {
     std::string out;
     if (FILE* p = popen(cmd.c_str(), "r")) {

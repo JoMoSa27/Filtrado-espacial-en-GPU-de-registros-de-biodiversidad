@@ -1,0 +1,16 @@
+estructura,predictor,n,spearman
+KDTree,morisita_2d,27,-0.25824175824175827
+KDTree,hacinamiento_medio,27,-0.9444444444444443
+KDTree,n_max,27,-0.945054945054945
+KDTree,p99,27,-0.877899877899878
+KDTree,ripley_norm,27,-0.24542124542124538
+LinearBVH,morisita_2d,27,-0.07448107448107448
+LinearBVH,hacinamiento_medio,27,-0.9468864468864469
+LinearBVH,n_max,27,-0.9145299145299145
+LinearBVH,p99,27,-0.9383394383394383
+LinearBVH,ripley_norm,27,-0.05982905982905983
+UniformGrid,morisita_2d,27,-0.23931623931623933
+UniformGrid,hacinamiento_medio,27,-0.9444444444444443
+UniformGrid,n_max,27,-0.9261294261294261
+UniformGrid,p99,27,-0.865079365079365
+UniformGrid,ripley_norm,27,-0.22283272283272282

@@ -92,6 +92,22 @@ def main():
         dest = ROOT / "data" / "interim" / f"{args.label}_r.csv.gz"
         out.to_csv(dest, index=False, compression="gzip")
         print(f"-> {dest.relative_to(ROOT)} ({len(out):,} filas)")
+    def radio(d_m):
+        """Radio en metros, coherente con lo que consume cada consumidor.
+
+        f64  -> la verdad geodesica, con el factor (1 - 1e-12) que convierte el
+                <= de cKDTree en el < estricto de GeoThinneR.
+        f32c -> EXACTAMENTE el float que recibe la GPU. En float32 ese factor no
+                cambia ni un bit, asi que el estricto se consigue bajando un ULP
+                con nextafterf. Usar radios distintos aqui y en la GPU meteria
+                una diferencia sistematica (hasta 4,5 mm a 50 km) que se leeria
+                como error de implementacion sin serlo.
+        """
+        c = float(geo.chord_radius(d_m))
+        if args.coords == "f32c":
+            return float(np.nextafter(np.float32(c), np.float32(0)))
+        return c * thin._STRICT
+
     timing = {}
     for km in args.radii_km:
         d_m = km * 1000.0
@@ -100,7 +116,7 @@ def main():
             print(f"[{args.label}] W1 d={km:g} km: N={len(xyz):,} > {args.w1_max_n:,}, "
                   f"sin referencia exacta (validar por acuerdo entre estructuras)")
         elif args.w1:
-            chord = float(geo.chord_radius(d_m)) * thin._STRICT
+            chord = radio(d_m)
             t = time.perf_counter()
             tree = cKDTree(xyz)
             t_build = time.perf_counter() - t
@@ -127,19 +143,44 @@ def main():
                 for seed in args.seeds:
                     t = time.perf_counter()
                     mask = np.zeros(len(xyz), bool)
+                    # Rondas por especie. En la GPU todas las especies avanzan a
+                    # la vez sobre un unico grafo, asi que su numero de rondas es
+                    # el MAXIMO sobre especies: la ultima en decidirse marca el
+                    # final del bucle. Por eso lo que se guarda es el maximo, no
+                    # la suma ni el promedio.
+                    rondas = []
                     for a, b in zip(starts, ends):
                         if ks[a] < 0:
                             continue
                         idx = order[a:b]
                         if len(idx) == 1:
                             mask[idx] = True
+                            rondas.append(1)   # entra en la primera ronda
                             continue
-                        ip, ix, _ = thin.neighbor_csr(xyz[idx], d_m)
-                        k, _, _ = thin.thin_greedy(ip, ix, rule, seed, check_rounds=False, ids=idx)
+                        ip, ix, _ = thin.neighbor_csr(xyz[idx], d_m, r=radio(d_m))
+                        # check_rounds=True: ademas de darnos las rondas, verifica
+                        # que la version por rondas de EXACTAMENTE el mismo
+                        # conjunto que la secuencial (Blelloch et al. 2012). Es la
+                        # propiedad que hace comparable la GPU.
+                        k, rnd, _ = thin.thin_greedy(ip, ix, rule, seed,
+                                                     check_rounds=True, ids=idx)
                         mask[idx[k]] = True
+                        rondas.append(int(rnd))
                     np.save(PROCESSED / f"{args.label}_thin_{rule}_{tag}_s{seed}{sfx}.npy", mask)
+
+                    import json as _json
+                    meta = {"label": args.label, "regla": rule, "d_km": km,
+                            "semilla": seed, "coords": args.coords,
+                            "rondas_max": int(max(rondas)) if rondas else 0,
+                            "rondas_media": float(np.mean(rondas)) if rondas else 0.0,
+                            "especies": len(rondas),
+                            "retenidos": int(mask.sum())}
+                    (PROCESSED / f"{args.label}_thin_{rule}_{tag}_s{seed}{sfx}_rondas.json"
+                     ).write_text(_json.dumps(meta, indent=2), encoding="utf-8")
+
                     print(f"[{args.label}] W2 {rule} s{seed} d={km:g} km: "
-                          f"retenidos {int(mask.sum()):,} de {int((otu >= 0).sum()):,} "
+                          f"retenidos {int(mask.sum()):,} de {int((otu >= 0).sum()):,}, "
+                          f"rondas max {meta['rondas_max']} sobre {len(rondas)} especies "
                           f"({time.perf_counter() - t:.1f} s)")
     if timing:
         import json

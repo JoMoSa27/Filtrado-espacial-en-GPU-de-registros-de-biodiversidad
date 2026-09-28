@@ -40,15 +40,21 @@ _STRICT = 1.0 - 1e-12
 # ----------------------------------------------------------------------------
 # Grafo de vecinos
 # ----------------------------------------------------------------------------
-def neighbor_csr(xyz, d_m):
+def neighbor_csr(xyz, d_m, r=None):
     """Pares a menos de d (geodesica) -> grafo en formato CSR (indptr, indices).
 
     Devuelve (indptr int64 [n+1], indices int32 [2P], P = pares no ordenados).
+
+    'r' permite imponer el radio en metros en vez de derivarlo de d_m. Existe
+    para que la referencia en float32 (05_references.py --coords f32c) use el
+    MISMO float que recibe la GPU: en float32 el factor (1 - 1e-12) no cambia
+    ni un bit, asi que el radio estricto se consigue con nextafterf y no
+    escalando. Sin este argumento el comportamiento es el de siempre.
     """
     n = len(xyz)
     if n < 2:
         return np.zeros(n + 1, np.int64), np.zeros(0, np.int32), 0
-    r = float(chord_radius(d_m)) * _STRICT
+    r = float(chord_radius(d_m)) * _STRICT if r is None else float(r)
     pairs = cKDTree(xyz).query_pairs(r, output_type="ndarray")
     P = len(pairs)
     if P == 0:

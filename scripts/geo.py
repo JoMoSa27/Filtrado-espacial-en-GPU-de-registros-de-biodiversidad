@@ -30,7 +30,16 @@ LON_NAMES = ("decimallongitude", "lon", "lng", "longitude", "x")
 KEEP_COLS_LOWER = set(LAT_NAMES) | set(LON_NAMES) | {
     "gbifid", "datasetkey", "species", "scientificname", "year",
     "basisofrecord", "coordinateuncertaintyinmeters", "institutioncode",
-    "occurrencestatus", "issue"}
+    "occurrencestatus", "issue", "taxonrank", "verbatimscientificname"}
+
+# Rectangulo de estudio COMUN para los conjuntos de Costa Rica (incluye la Isla
+# del Coco). Morisita y Ripley dependen del area de estudio; con un rectangulo
+# por conjunto, los taxones no son comparables (Q distinto). Se fija uno solo.
+CR_RECT = (5.3, 11.3, -87.2, -82.5)
+
+# BIN de BOLD (Ratnasingham y Hebert 2013): unidad operativa cuando el registro
+# no tiene especie (p. ej. muestras de trampas Malaise identificadas por ADN).
+_BIN_RE = r"(BOLD:[A-Z]{3}\d{4})"
 
 
 def read_any(path, lat_col=None, lon_col=None):
@@ -122,30 +131,54 @@ def clean(df, keep_duplicates=False, round_decimals=5,
             "No sostiene un filtrado a 1 km. Se conservan los NaN: GBIF a "
             "menudo no la reporta.")
 
-    # Duplicado = MISMA ESPECIE en la misma coordenada (definicion de
-    # CoordinateCleaner::cc_dupl). Dos especies distintas en el mismo punto
-    # (p. ej. una trampa de luz) NO son duplicados: son dos registros validos.
-    # Si falta 'species' (identificado solo a genero), se usa scientificName.
+    # Presencia repetida = MISMA UNIDAD TAXONOMICA en la misma coordenada
+    # (CoordinateCleaner::cc_dupl usa especie + coordenada). La unidad es la
+    # misma del filtrado por especie (otu_key): especie; si no hay, BIN de BOLD;
+    # si tampoco, scientificName (identificado solo a genero o mas arriba).
+    # Dos unidades distintas en el mismo punto (p. ej. una trampa Malaise) NO
+    # son repetidas: son dos registros validos.
     key = df[["lat", "lon"]].round(round_decimals)
     taxon_col = None
-    if "species" in df.columns or "scientificName" in df.columns:
-        sp = df["species"] if "species" in df.columns else pd.Series(np.nan, index=df.index)
+    if any(c in df.columns for c in ("species", "scientificName", "verbatimScientificName")):
+        sp = otu_key(df)
         if "scientificName" in df.columns:
-            sp = sp.where(sp.notna() & (sp.astype(str).str.strip() != ""),
-                          df["scientificName"])
+            sp = sp.where(sp.notna(), df["scientificName"])
         key = key.assign(_taxon=sp.astype(str).str.strip())
-        taxon_col = "especie + coordenada"
+        taxon_col = "especie/BIN + coordenada"
     dup = key.duplicated(keep="first")
     n = len(df)
     if not keep_duplicates:
         df = df[~dup]
     criterio = taxon_col or "coordenada"
-    log(f"Duplicados exactos ({criterio}, {round_decimals} decimales)", n, len(df),
+    log(f"Presencias repetidas ({criterio}, {round_decimals} decimales)", n, len(df),
         "Misma especie repetida en la misma coordenada. Inflan Sum n_i^2 y con "
         "ello el costo de la grilla." if not keep_duplicates else
         "CONSERVADOS a proposito (variante 'con duplicados').")
 
     return df.reset_index(drop=True), pasos
+
+
+def otu_key(df, single=None):
+    """Unidad taxonomica para filtrar POR ESPECIE (como GeoThinneR con grupos).
+
+    Especie si existe; si no, el BIN de BOLD que aparezca en scientificName o
+    verbatimScientificName; si no, NaN (identificado solo a genero o mas
+    arriba: no se puede filtrar por especie y se excluye, con conteo).
+    'single' = nombre para tratar todo el conjunto como una sola especie.
+    """
+    if single is not None:
+        return pd.Series(single, index=df.index, dtype=object)
+    out = pd.Series(np.nan, index=df.index, dtype=object)
+    if "species" in df.columns:
+        sp = df["species"].astype(object)
+        ok = sp.notna() & (sp.astype(str).str.strip() != "") & (sp.astype(str) != "nan")
+        out[ok] = sp[ok].astype(str).str.strip()
+    for col in ("scientificName", "verbatimScientificName"):
+        if col in df.columns:
+            b = df[col].astype(str).str.extract(_BIN_RE, expand=False)
+            fill = out.isna() & b.notna()
+            out[fill] = b[fill]
+    return out
 
 
 # ----------------------------------------------------------------------------

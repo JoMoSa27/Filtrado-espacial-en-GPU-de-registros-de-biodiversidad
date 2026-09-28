@@ -39,6 +39,9 @@ def main():
     ap.add_argument("--lon-col")
     ap.add_argument("--keep-duplicates", action="store_true")
     ap.add_argument("--round-decimals", type=int, default=5)
+    ap.add_argument("--max-uncertainty-km", type=float, default=geo.MAX_UNCERTAINTY_M / 1000,
+                    help="descarta registros con incertidumbre mayor (0 = no filtrar; "
+                         "se usa para dar a GeoThinneR y a la GPU la misma entrada publicada)")
     ap.add_argument("--sample", type=int, default=None,
                     help="submuestra aleatoria de N puntos DESPUES de limpiar "
                          "(para el barrido de N a partir de una sola descarga)")
@@ -47,7 +50,8 @@ def main():
 
     frames = [geo.read_any(p, args.lat_col, args.lon_col) for p in args.inputs]
     raw = pd.concat(frames, ignore_index=True)
-    df, pasos = geo.clean(raw, args.keep_duplicates, args.round_decimals)
+    max_unc = np.inf if args.max_uncertainty_km <= 0 else args.max_uncertainty_km * 1000
+    df, pasos = geo.clean(raw, args.keep_duplicates, args.round_decimals, max_unc)
     if len(df) == 0:
         raise SystemExit("No quedaron registros tras la limpieza.")
     if args.sample and args.sample < len(df):
@@ -72,8 +76,9 @@ def main():
             np.ascontiguousarray((xyz - centroid).astype(np.float32)))
     np.save(PROCESSED / f"{L}_centroid_f64.npy", centroid)
 
-    keep = [c for c in ("species", "scientificName", "year", "basisOfRecord",
-                        "gbifID", "datasetKey") if c in df.columns]
+    keep = [c for c in ("species", "scientificName", "verbatimScientificName",
+                        "taxonRank", "year", "basisOfRecord", "gbifID",
+                        "datasetKey") if c in df.columns]
     meta = df[["lat", "lon"] + keep].copy()
     try:
         meta.to_parquet(INTERIM / f"{L}.parquet", index=False)

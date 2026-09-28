@@ -6,7 +6,8 @@ Para cada radio r (= tamano de celda de la grilla) calcula:
   Morisita 2D   cuadrantes r x r en proyeccion de igual area (Lambert azimutal),
                 Q = area del rectangulo de estudio / r^2. ~1 = aleatorio.
                 Promedio y cv sobre 5 origenes de malla (control de MAUP).
-  hacinamiento  Sum n_i^2 / N sobre la grilla 3D (proporcional al trabajo)
+  hacinamiento  Lloyd (1967): Sum n_i(n_i-1) / N sobre la grilla 3D: cuantos OTROS
+                registros comparten celda con un registro al azar (~ trabajo de la grilla)
   n_max, p99    cola de la distribucion de celdas 3D (desbalance entre warps)
   K de Ripley   K(r)/(pi r^2) en 3D con radio de cuerda. ~1 = aleatorio.
 
@@ -55,11 +56,19 @@ def main():
     ap.add_argument("--label", required=True)
     ap.add_argument("--radii-km", type=float, nargs="+", default=[1, 5, 10])
     ap.add_argument("--offsets", type=int, default=5)
+    ap.add_argument("--rect", default="data",
+                    help="area de estudio para Q (Morisita) y lambda (Ripley): "
+                         "'data' = rectangulo lat/lon de los datos; 'cr' = rectangulo "
+                         "comun de Costa Rica (geo.CR_RECT), el que hace comparables "
+                         "a los taxones entre si")
     args = ap.parse_args()
 
     xyz, meta = load(args.label)
     N = len(xyz)
-    rect = (meta.lat.min(), meta.lat.max(), meta.lon.min(), meta.lon.max())
+    if args.rect == "cr":
+        rect = geo.CR_RECT
+    else:
+        rect = (meta.lat.min(), meta.lat.max(), meta.lon.min(), meta.lon.max())
     area = geo.rect_area_m2(*rect)
     rows = []
     for km in args.radii_km:
@@ -71,12 +80,13 @@ def main():
         rows.append({
             "radio_km": km, "N": N,
             "morisita_2d": mor, "morisita_2d_cv": cv,
-            "hacinamiento_medio": float((c.astype(float) ** 2).sum() / N),
+            "hacinamiento_medio": float((c * (c - 1.0)).sum() / N),  # Lloyd (1967)
             "n_max": int(c.max()), "p99": float(np.percentile(c, 99)),
             "celdas3d_ocupadas": int(len(c)), "celdas3d_totales": Q3,
             "ripley_norm": ripley(xyz, chord, area),
         })
-    out = {"label": args.label, "N": N, "rect": rect, "area_km2": area / 1e6,
+    out = {"label": args.label, "N": N, "rect": list(map(float, rect)),
+           "rect_regla": args.rect, "area_km2": area / 1e6,
            "por_radio": rows}
     (PROCESSED / f"{args.label}_cluster_stats.json").write_text(
         json.dumps(out, indent=2), encoding="utf-8")

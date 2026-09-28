@@ -92,6 +92,17 @@ permite predecirlo **antes** de construir la estructura.
 | **OE1** | Verificar con datos reales que la grilla se degrada al aumentar el agrupamiento mientras el k-d tree se mantiene estable. |
 | **OE2** | Comparar predictores de agrupamiento (Morisita, ocupación máxima por celda, hacinamiento medio, K de Ripley) contra el costo medido en GPU. |
 | **OE3** | Comparar tiempo, memoria y puntos retenidos contra GeoThinneR. |
+| **OE4** | Filtrar **por especie** con un algoritmo paralelo exacto (voraz por prioridad, Blelloch *et al.* 2012) cuya salida en GPU se valida conjunto por conjunto contra la referencia en CPU. |
+
+La consulta por radio sirve a **dos** pasos estándar de los flujos de SDM, y
+cada uno define una carga de trabajo:
+
+- **Filtrado espacial por especie** (spThin, GeoThinneR con grupos): un
+  registro solo elimina a otros de su misma especie.
+- **Densidad de registros del grupo objetivo** (esfuerzo de muestreo; fondo
+  *target-group* de Phillips *et al.* 2009): cuántos registros de todo el
+  taxón hay a menos de `d`. Aquí se cuentan **todos** los registros, incluidas
+  las visitas repetidas, porque cada visita es esfuerzo.
 
 El trabajo se plantea como **comparación de predictores**, no como defensa de
 ninguno. Es posible que la ocupación máxima prediga mejor que Morisita —en GPU
@@ -128,12 +139,15 @@ Tierra), así que ahí manda el float64.
 
 | | Qué aísla | Entrada |
 |---|---|---|
-| **E1** | El efecto del agrupamiento a N fijo | Los 4 taxones submuestreados al mismo N (lo fija Amphibia, el más pequeño). Como N es igual, lo único que cambia entre taxones es la forma del agrupamiento. |
-| **E2** | El escalamiento: dónde se justifica la GPU | Aves 2018 en 50 k, 100 k, 300 k, 1 M y completo, más Plantae e Insecta completos. |
-| **E3** | La comparación con el baseline publicado | Tortuga y atún, la misma entrada con la que GeoThinneR reportó sus tiempos, a sus mismos radios. |
+| **E1** | El efecto del agrupamiento a N fijo (densidad del grupo) | Los 4 taxones **con registros repetidos** submuestreados al mismo N (lo fija Amphibia). Como N es igual, lo único que cambia entre taxones es la forma del agrupamiento. |
+| **E2** | El escalamiento: dónde se justifica la GPU | Aves 2018 con repetidos en 50 k, 100 k, 300 k, 1 M y completo (1,59 M). |
+| **E3** | La comparación con el baseline publicado | Tortuga y atún con **exactamente** la entrada que usó GeoThinneR (`*_gt`: sin filtro de incertidumbre ni de duplicados), a sus mismos radios. |
+| **E4** | Filtrado por especie a escala nacional | Cada especie (o BIN de BOLD) de los 4 taxones, a 1, 5 y 10 km: retenidos por regla, rondas paralelas, validación, costo en CPU. |
 
 Radios: **1, 5 y 10 km** para Costa Rica; **10, 25 y 50 km** para el atún.
-Todos los conjuntos se corren con y sin duplicados.
+Morisita y Ripley de los taxones de Costa Rica usan un **área de estudio común**
+(`geo.CR_RECT`); con un rectángulo por conjunto, los taxones no serían
+comparables.
 
 ## 7. Datos
 
@@ -247,7 +261,7 @@ que cita el paper.
 
 ```bash
 python -m venv ~/venvs/bip && source ~/venvs/bip/bin/activate
-pip install numpy pandas scipy matplotlib pyarrow pyreadr requests
+pip install numpy pandas scipy matplotlib pyarrow pyreadr requests numba
 ```
 
 `pyarrow` es opcional: sin él, `02_prepare.py` escribe `.csv.gz` en vez de
@@ -302,6 +316,11 @@ nodo de login.
 | `<label>_xyz_f32_centered.npy` | float32 con el centroide restado |
 | `<label>_centroid_f64.npy` | el centroide, para volver a coordenadas absolutas |
 | `<label>_report.json` | cuántos se descartaron en cada paso, bbox, radios de cuerda |
+| `<label>_cluster_stats.json` | predictores de agrupamiento por radio (`03`) |
+| `<label>_por_especie.csv/.json` | filtrado y predictores por especie (`04`) |
+| `<label>_otu.npy` | id de especie/BIN por registro (-1 = sin especie) |
+| `<label>_count_<d>km.npy` | referencia W1: vecinos exactos por registro (`05`) |
+| `<label>_thin_<regla>_<d>km_s<semilla>.npy` | referencia W2: máscara exacta del filtrado por especie (`05`) |
 
 ## 9. Organización
 
@@ -314,8 +333,14 @@ bip2026/
 │   ├── 01_download_gbif.py  pedir descargas nuevas a la API de GBIF
 │   ├── 02_prepare.py        genera los .npy que consumen los kernels
 │   ├── 03_cluster_stats.py  predictores de agrupamiento
+│   ├── thin.py              filtrado de referencia en CPU (3 reglas, validación)
+│   ├── 04_species_stats.py  filtrado por especie + predictores por especie
+│   ├── 05_references.py     salidas exactas para validar la GPU
+│   ├── 06_check_geothinner.py valida la salida real de GeoThinneR (pares < d, maximalidad)
+│   ├── fig_thinning.py      figura del paper (retención y rondas)
+│   ├── 07_analyze_bench.py  CSV del benchmark -> tablas, Spearman y figura GPU
 │   └── run_pipeline.sh      corre todo, conjunto por conjunto
-├── bench/                   (pendiente) el benchmark CUDA
+├── bench/                   diseño del benchmark CUDA y línea base GeoThinneR
 ├── data/raw/                descargas sin tocar — inmutable
 ├── data/interim/            metadatos limpios
 ├── data/processed/          .npy listos para los kernels
@@ -339,10 +364,11 @@ demás scripts la importan, no la duplican. Las estructuras espaciales viven en
 
 | | |
 |---|---|
-| Pipeline de datos | completo |
-| Descargas de GBIF | con DOI asignado, pendientes de bajar |
-| Exploración de los datos de GeoThinneR | hecha |
-| Benchmark en GPU (`bench/`) | pendiente |
+| Pipeline de datos | completo (E1–E4 y referencias) |
+| Descargas de GBIF | en Kabre |
+| Filtrado de referencia en CPU (`thin.py`) | hecho y validado |
+| Benchmark en GPU (`bench/`) | diseñado (`bench/README.md`), por implementar |
+| Línea base GeoThinneR | script listo (`bench/run_geothinner.sh`) |
 | Manuscrito | pendiente |
 
 Formato de envío: 4–6 páginas, plantilla de *Tecnología en Marcha*, resumen y

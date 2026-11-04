@@ -1,0 +1,11 @@
+label,otu,especie,N,percentil,retenidos_1km_s0,retenidos_5km_s0,retenidos_10km_s0
+aves_2018,484,Aramus guarauna,143,10,88,47,33
+aves_2018,661,Myiopagis viridicata,241,30,173,104,74
+aves_2018,302,Cynanthus canivetii,417,50,279,148,85
+aves_2018,257,Cantorchilus semibadius,706,70,305,120,63
+aves_2018,0,Butorides virescens,1621,90,816,359,197
+amphibia,1,Dendropsophus phlebodes,123,10,69,43,28
+amphibia,66,Lithobates forreri,179,30,84,55,38
+amphibia,13,Duellmanohyla rufioculis,287,50,102,52,34
+amphibia,73,Smilisca baudinii,458,70,214,124,83
+amphibia,18,Lithobates warszewitschii,1569,90,443,185,106

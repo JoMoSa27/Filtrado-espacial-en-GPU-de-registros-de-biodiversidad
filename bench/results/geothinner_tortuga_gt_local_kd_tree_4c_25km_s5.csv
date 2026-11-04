@@ -1,0 +1,2 @@
+"label","N","especies","geothinner","metodo","d_km","rep","trials","n_cores","seg","retenidos","error"
+"tortuga_gt",8340,1,"2.1.3","local_kd_tree",25,5,10,4,9.347,856,""

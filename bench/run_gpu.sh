@@ -137,6 +137,7 @@ W1_SETS=(
 W2_SETS=(
   "tortuga_gt:10 25 50"
   "atun_gt:10 25 50"
+  "turdus_grayi:10 25 50"   # C6: especie de gran rango (bench/run_c6_turdus.sh)
 )
 
 falta() { [ ! -f "data/processed/$1_xyz_f32_centered.npy" ]; }

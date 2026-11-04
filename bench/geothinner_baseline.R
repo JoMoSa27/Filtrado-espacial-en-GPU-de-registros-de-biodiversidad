@@ -6,8 +6,11 @@
 # tiempo de pared, puntos retenidos. La memoria pico se mide desde afuera con
 # /usr/bin/time -v (ver bench/run_geothinner.sh).
 #
-# Uso: Rscript bench/geothinner_baseline.R <label> <d_km,...> <search_type,...> [trials] [n_cores] [reps]
-#   Rscript bench/geothinner_baseline.R atun_gt 10,25,50 local_kd_tree,k_estimation 10 6 3
+# Uso: Rscript bench/geothinner_baseline.R <label> <d_km,...> <search_type,...> [trials] [n_cores] [reps] [semilla0]
+#   Rscript bench/geothinner_baseline.R atun_gt 10,25,50 local_kd_tree,k_estimation 10 4 10
+# Las semillas van de semilla0 a semilla0 + reps - 1. run_geothinner.sh llama una
+# repeticion a la vez (reps = 1, semilla0 = r) para que el corte de tiempo sea
+# por corrida.
 suppressPackageStartupMessages(library(GeoThinneR))
 a <- commandArgs(trailingOnly = TRUE)
 label   <- a[1]
@@ -16,22 +19,31 @@ methods <- strsplit(a[3], ",")[[1]]
 trials  <- if (length(a) >= 4) as.integer(a[4]) else 10L
 ncores  <- if (length(a) >= 5) as.integer(a[5]) else 1L
 reps    <- if (length(a) >= 6) as.integer(a[6]) else 3L
+seed0   <- if (length(a) >= 7) as.integer(a[7]) else 1L
 
 x <- read.csv(gzfile(file.path("data", "interim", paste0(label, "_r.csv.gz"))))
 grupos <- length(unique(x$otu))
 gcol <- if (grupos > 1) "otu" else NULL
-cat(sprintf("[%s] %d registros, %d especies, trials=%d, n_cores=%d\n",
-            label, nrow(x), grupos, trials, ncores))
+# Mismo radio terrestre que ThinGPU (geo.py: 6 371 008,8 m). GeoThinneR usa
+# 6371 km por defecto; con otro R el umbral angular d/R cambia en 1,4e-6 y
+# podrían diferir pares a ~1 cm del borde, que se leerían como diferencias de
+# algoritmo sin serlo.
+R_KM <- 6371.0088
+ver <- as.character(packageVersion("GeoThinneR"))
+cat(sprintf("[%s] %d registros, %d especies, trials=%d, n_cores=%d, GeoThinneR %s, R=%.4f km\n",
+            label, nrow(x), grupos, trials, ncores, ver, R_KM))
 
-out <- file.path("bench", "results", sprintf("geothinner_%s_%s.csv", label,
-                 format(Sys.time(), "%Y%m%d_%H%M%S")))
+# Un archivo por invocacion, con nombre fijo: con una repeticion por llamada,
+# una marca de tiempo al segundo podria repetirse.
+out <- file.path("bench", "results", sprintf("geothinner_%s_%s_%dc_%skm_s%d.csv", label,
+                 paste(methods, collapse = "+"), ncores, paste(dists, collapse = "+"), seed0))
 dir.create(dirname(out), showWarnings = FALSE, recursive = TRUE)
 rows <- list()
-for (m in methods) for (d in dists) for (r in seq_len(reps)) {
+for (m in methods) for (d in dists) for (r in seed0 + seq_len(reps) - 1L) {
   t <- system.time(res <- tryCatch(
     thin_points(x, lon_col = "lon", lat_col = "lat", group_col = gcol,
                 method = "distance", search_type = m, thin_dist = d,
-                trials = trials, seed = r, n_cores = ncores),
+                trials = trials, seed = r, n_cores = ncores, R = R_KM),
     error = function(e) e))
   ok <- !inherits(res, "error")
   kept <- if (ok) sum(res$retained[[1]]) else NA
@@ -43,7 +55,7 @@ for (m in methods) for (d in dists) for (r in seq_len(reps)) {
     write.csv(data.frame(row = x$row[res$retained[[1]]]), gzfile(mk), row.names = FALSE)
   }
   rows[[length(rows) + 1]] <- data.frame(
-    label = label, N = nrow(x), especies = grupos, metodo = m, d_km = d, rep = r,
+    label = label, N = nrow(x), especies = grupos, geothinner = ver, metodo = m, d_km = d, rep = r,
     trials = trials, n_cores = ncores, seg = unname(t["elapsed"]), retenidos = kept,
     error = if (ok) "" else conditionMessage(res))
   cat(sprintf("  %-14s d=%4.0f km rep %d: %8.2f s  retenidos %s %s\n", m, d, r,

@@ -24,7 +24,7 @@ PROCESSED = ROOT / "data" / "processed"
 
 rows = []
 for f in sorted(glob.glob(str(ROOT / "bench" / "results" / "geothinner_mask_*.csv.gz"))):
-    m = re.search(r"geothinner_mask_(.+)_(local_kd_tree|kd_tree|k_estimation|brute)_([\d.]+)km", f)
+    m = re.search(r"geothinner_mask_(.+?)_(local_kd_tree|kd_tree|k_estimation|brute)_([\d.]+)km", f)
     label, metodo, dkm = m.group(1), m.group(2), float(m.group(3))
     xyz = np.load(PROCESSED / f"{label}_xyz_f64.npy")
     otu_p = PROCESSED / f"{label}_otu.npy"

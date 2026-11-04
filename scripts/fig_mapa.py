@@ -15,6 +15,8 @@ registros.
 Uso (desde la raíz del repo):
     python3 scripts/fig_mapa.py --label aves_2018 --d-km 5 --regla mindeg
 Salidas: paper/fig_mapa_<label>_<d>km.png y data/processed/<label>_concentracion_<d>km.json
+Con --poster: versión del póster al ancho de su espacio (22,5 cm), con letra a
+escala del póster, en SVG (vectorial) y PNG a 600 dpi: paper/poster/fig1_<label>_<d>km.svg/.png
 """
 import argparse
 import json
@@ -72,6 +74,7 @@ def main():
     ap.add_argument("--regla", default="mindeg")
     ap.add_argument("--semilla", type=int, default=0)
     ap.add_argument("--titulo", default="Birds, 2018")
+    ap.add_argument("--poster", action="store_true", help="versión del póster (SVG y PNG 600 dpi)")
     args = ap.parse_args()
     tag = f"{args.d_km:g}km"
 
@@ -97,10 +100,19 @@ def main():
         "azules", plt.get_cmap("Blues")(np.linspace(0.25, 1.0, 256)))
     kw = dict(gridsize=90, extent=ext, mincnt=1, cmap=azules, linewidths=0,
               norm=LogNorm(vmin=1, vmax=max(1, antes["max_por_celda"])))
-    fig, axes = plt.subplots(1, 2, figsize=(6.4, 3.2), sharey=True)
-    fig.subplots_adjust(left=0.02, right=0.88, top=0.9, bottom=0.04, wspace=0.04)
-    paneles = ((lon0, lat0, f"(a) All records: {antes['registros']:,}"),
-               (lon2, lat2, f"(b) After thinning at {args.d_km:g} km: {despues['registros']:,}"))
+    CM = 1 / 2.54
+    if args.poster:
+        # 22,5 cm de ancho como su espacio en el póster; letra de 16 pt (el pie del póster es de 20 pt)
+        plt.rcParams.update({"font.family": "sans-serif", "font.size": 16})
+        fig, axes = plt.subplots(1, 2, figsize=(22.5 * CM, 22.5 * CM * 3.2 / 6.4), sharey=True)
+        fig.subplots_adjust(left=0.01, right=0.83, top=0.89, bottom=0.03, wspace=0.04)
+        paneles = ((lon0, lat0, f"(a) {antes['registros']:,} records"),
+                   (lon2, lat2, f"(b) {despues['registros']:,} kept, {args.d_km:g} km"))
+    else:
+        fig, axes = plt.subplots(1, 2, figsize=(6.4, 3.2), sharey=True)
+        fig.subplots_adjust(left=0.02, right=0.88, top=0.9, bottom=0.04, wspace=0.04)
+        paneles = ((lon0, lat0, f"(a) All records: {antes['registros']:,}"),
+                   (lon2, lat2, f"(b) After thinning at {args.d_km:g} km: {despues['registros']:,}"))
     for ax, (x, y, t) in zip(axes, paneles):
         hb = ax.hexbin(x, y, **kw)
         contorno(ax)
@@ -109,14 +121,26 @@ def main():
         ax.set_xticks([]); ax.set_yticks([])
         for s in ax.spines.values():
             s.set_visible(False)
-        ax.set_title(t, fontsize=8.5, loc="left", family="serif")
-    cax = fig.add_axes([0.9, 0.12, 0.02, 0.7])
+        if args.poster:
+            ax.set_title(t, loc="left")
+        else:
+            ax.set_title(t, fontsize=8.5, loc="left", family="serif")
+    cax = fig.add_axes([0.85, 0.12, 0.02, 0.7] if args.poster else [0.9, 0.12, 0.02, 0.7])
     cb = fig.colorbar(hb, cax=cax)
-    cb.set_label("Records per cell", fontsize=8, family="serif")
-    cb.ax.tick_params(labelsize=7)
-    out = ROOT / "paper" / f"fig_mapa_{args.label}_{tag}.png"
-    out.parent.mkdir(exist_ok=True)
-    fig.savefig(out, dpi=300)
+    if args.poster:
+        cb.set_label("Records per cell", fontsize=14)
+        cb.ax.tick_params(labelsize=13)
+        d = ROOT / "paper" / "poster"
+        d.mkdir(parents=True, exist_ok=True)
+        out = d / f"fig1_{args.label}_{tag}.svg"
+        fig.savefig(out)
+        fig.savefig(out.with_suffix(".png"), dpi=600)
+    else:
+        cb.set_label("Records per cell", fontsize=8, family="serif")
+        cb.ax.tick_params(labelsize=7)
+        out = ROOT / "paper" / f"fig_mapa_{args.label}_{tag}.png"
+        out.parent.mkdir(exist_ok=True)
+        fig.savefig(out, dpi=300)
     print(f"-> {out.relative_to(ROOT)}")
 
 

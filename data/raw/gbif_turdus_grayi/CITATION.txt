@@ -1,0 +1,11 @@
+Conjunto:        Turdus grayi (Clay-colored Thrush), todo su rango, todos los años
+Registros:       949 010 (de 227 conjuntos de datos publicados)
+Taxonomía:       Catalogue of Life (tal como la implementa GBIF; taxonKey 59PLL)
+Formato:         Simple occurrence data (TSV), 89,9 MB comprimido
+Creada:          2026-11-03 05:26:33 UTC
+Clave GBIF:      0023623-261023074918325
+Descarga:        https://api.gbif.org/v1/occurrence/download/request/0023623-261023074918325.zip
+SHA-256 (zip):   4af18d6dcd6a5aad73ad2cf10bdbbefc39b09fa628287f6a00882284c3db1a9d
+Consulta:        mismos filtros comunes que las descargas nacionales (con coordenadas, sin problemas geoespaciales, presencia, sin Fossil ni Living specimen), taxón Turdus grayi, sin filtro de país ni de año
+DOI:             https://doi.org/10.15468/dl.js3buy
+Cita:            GBIF.org (3 November 2026) GBIF Occurrence Download https://doi.org/10.15468/dl.js3buy

@@ -2,7 +2,6 @@
 #
 # CRITERIO: al repo sube lo que hace falta para REGENERAR todo en Kabre, y nada
 # que se pueda regenerar. En concreto:
-#
 # Regla del repo: data/raw/ es inmutable y todo lo demás se regenera con
 # scripts/run_pipeline.sh. Este archivo es esa regla, aplicada.
 #
@@ -60,6 +59,10 @@ data/**/*.tsv
 # Resultados del benchmark: SÍ se suben 
 # Son pequeños y el paper se escribe a partir de ellos. La regla del repo dice
 # que ningún número puede venir de otro lado que no sea una corrida guardada.
+# Incluye la línea base con el paquete GeoThinneR (C1): tiempos y retenidos
+# (geothinner_<label>_*.csv), memoria pico (geothinner_memoria.csv), máscaras
+# de la primera repetición (geothinner_mask_*.csv.gz, ~100 KB c/u) y la
+# validación de maximalidad (geothinner_validacion.csv).
 !results/
 !results/**
 
@@ -82,3 +85,9 @@ CLAUDE.md
 CONTEXT.md
 KABRE.md
 .claude/
+
+# Camera-ready (manuscrito, póster, plantillas de la revista y de IEEE)
+# Por ahora no se sube: manuscrito sin publicar y plantillas de terceros, y el
+# repositorio se va a hacer público (C3). Quitar esta regla cuando se decida
+# versionarlo.
+camera_ready/
